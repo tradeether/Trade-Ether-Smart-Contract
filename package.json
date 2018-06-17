@@ -4,12 +4,8 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/forkdelta/smart_contract"
+    "url": "https://github.com/tradeether/TradeEther-Smart_Contract"
   },
-  "require": [
-    "babel-register",
-    "babel-polyfill"
-  ],
   "dependencies": {
     "async": "^2.6.0",
     "babel-polyfill": "^6.26.0",

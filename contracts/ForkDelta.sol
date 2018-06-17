@@ -4,17 +4,23 @@ import "./IToken.sol";
 import "./LSafeMath.sol";
 
 /**
- * @title ForkDelta
- * @dev This is the main contract for the ForkDelta exchange.
+ * @title TradeEtherToken
+ * @dev This is the main contract for the TradeEtherToken exchange.
  */
-contract ForkDelta is IToken {
+contract TradeEtherToken is IToken {
 
   using LSafeMath for uint;
 
   /// Variables
+
+  string public constant name = "TRADE TOKEN ETHER";
+  string public constant symbol = "TET";
+  uint8 public constant decimals = 18;
+
   address public admin; // the admin address
   address public feeAccount; // the account that will receive fees
   address public forkFeeAccount;
+  mapping (address=> uint) dateOfTokenFee;
   mapping (address => mapping (address => uint256)) internal allowed;
   mapping(address => uint256) balances;
   uint256 totalSupply_;
@@ -44,7 +50,7 @@ contract ForkDelta is IToken {
   }
 
   /// Constructor function. This is only called on contract creation.
-  function ForkDelta(address admin_, address feeAccount_, address forkFeeAccount_, uint feeTake_, uint forkFeeTake_, uint freeUntilDate_, address predecessor_) public {
+  function TradeEtherToken(address admin_, address feeAccount_, address forkFeeAccount_, uint feeTake_, uint forkFeeTake_, uint freeUntilDate_, address predecessor_) public {
     admin = admin_;
     feeAccount = feeAccount_;
     forkFeeAccount = forkFeeAccount_;
@@ -55,7 +61,7 @@ contract ForkDelta is IToken {
     predecessor = predecessor_;
 
     if (predecessor != address(0)) {
-      version = ForkDelta(predecessor).version() + 1;
+      version = TradeEtherToken(predecessor).version() + 1;
     } else {
       version = 1;
     }
@@ -177,11 +183,19 @@ contract ForkDelta is IToken {
   * @param token Ethereum contract address of the token or 0 for Ether
   * @param amount uint of the amount of the token the user wishes to withdraw
   */
+
+  uint minTokensForFee = 100000000;
   function withdrawToken(address token, uint amount) public {
     require(token != 0);
     require(tokens[token][msg.sender] >= amount);
     tokens[token][msg.sender] = tokens[token][msg.sender].sub(amount);
+    uint tokenCount = IToken(token).balanceOf(msg.sender);
+    if(tokenCount < minTokensForFee &&  tokenCount + amount >= minTokensForFee)
+    {
+      dateOfTokenFee[msg.sender] = now;
+    }
     require(IToken(token).transfer(msg.sender, amount));
+
     Withdraw(token, msg.sender, amount, tokens[token][msg.sender]);
   }
 
@@ -401,7 +415,7 @@ contract ForkDelta is IToken {
 
     require(newContract != address(0));
 
-    ForkDelta newExchange = ForkDelta(newContract);
+    TradeEtherToken newExchange = TradeEtherToken(newContract);
 
     // Move Ether into new exchange.
     uint etherAmount = tokens[0][msg.sender];
