@@ -1,6 +1,6 @@
-# ForkDelta's Smart Contract
+# Trade Ether's Smart Contract
 
-This is the official repository for all things regarding the ForkDela smart contract.  
+This is the official repository for all things regarding the Trade Ether smart contract.  
 All contracts are located in the `contracts` folder.
 
 ## Summary
