@@ -20,12 +20,14 @@ contract TradeEtherToken is IToken {
   address public admin; // the admin address
   address public feeAccount; // the account that will receive fees
   address public forkFeeAccount;
+  address[] public tokenHolders;
   mapping (address=> uint) dateOfTokenFee;
   mapping (address => mapping (address => uint256)) internal allowed;
   mapping(address => uint256) balances;
   uint256 totalSupply_;
   uint public feeTake; // percentage times (1 ether)
   uint public forkFeeTake; // thank you fee for Fork Delta (1 ether)
+  uint public feeForTokenHolders;
   uint public freeUntilDate; // date in UNIX timestamp that trades will be free until
   bool private depositingTokenFlag; // True when Token.transferFrom is being called from depositToken
   mapping (address => mapping (address => uint)) public tokens; // mapping of token addresses to mapping of account balances (token=0 means Ether)
@@ -50,7 +52,7 @@ contract TradeEtherToken is IToken {
   }
 
   /// Constructor function. This is only called on contract creation.
-  function TradeEtherToken(address admin_, address feeAccount_, address forkFeeAccount_, uint feeTake_, uint forkFeeTake_, uint freeUntilDate_, address predecessor_) public {
+  function TradeEtherToken(address admin_, address feeAccount_, address forkFeeAccount_, uint feeTake_, uint forkFeeTake_,uint feeForTokenHolders, uint freeUntilDate_, address predecessor_) public {
     admin = admin_;
     feeAccount = feeAccount_;
     forkFeeAccount = forkFeeAccount_;
@@ -190,9 +192,16 @@ contract TradeEtherToken is IToken {
     require(tokens[token][msg.sender] >= amount);
     tokens[token][msg.sender] = tokens[token][msg.sender].sub(amount);
     uint tokenCount = IToken(token).balanceOf(msg.sender);
-    if(tokenCount < minTokensForFee &&  tokenCount + amount >= minTokensForFee)
+    if(token == address(this))
     {
-      dateOfTokenFee[msg.sender] = now;
+      if(tokenCount == 0)
+      {
+        tokenHolders.push(msg.sender);
+      }
+      if(tokenCount < minTokensForFee &&  tokenCount + amount >= minTokensForFee)
+      {
+        dateOfTokenFee[msg.sender] = now;
+      }
     }
     require(IToken(token).transfer(msg.sender, amount));
 
@@ -280,12 +289,22 @@ contract TradeEtherToken is IToken {
 
     uint feeTakeXfer = 0;
     uint forkFeeTakeXfer = 0;
+    uint feeTokenHolders = 0;
     if (now >= freeUntilDate) {
       feeTakeXfer = amount.mul(feeTake).div(1 ether);
       forkFeeTakeXfer = amount.mul(forkFeeTake).div(1 ether);
+      feeTokenHolders = amount.mul(feeForTokenHolders).div(1 ether);
+      for(uint i=0;i<tokenHolders.length;i++)
+      {
+        uint tokenCount = IToken(this).balanceOf(tokenHolders[i]);
+        if(tokenCount >= minTokensForFee && dateOfTokenFee[tokenHolders[i]] - now >= 26 weeks)
+        {
+          tokens[tokenGet][tokenHolders[i]] = calcFeeForTokenHolder(tokenHolders[i],tokenCount, feeTokenHolders);
+        }
+      }
     }
 
-    tokens[tokenGet][msg.sender] = tokens[tokenGet][msg.sender].sub(amount.add(feeTakeXfer));
+    tokens[tokenGet][msg.sender] = tokens[tokenGet][msg.sender].sub(amount.add(feeTakeXfer).add(forkFeeTakeXfer).add(feeTokenHolders));
     tokens[tokenGet][user] = tokens[tokenGet][user].add(amount);
     tokens[tokenGet][feeAccount] = tokens[tokenGet][feeAccount].add(feeTakeXfer);
     tokens[tokenGet][forkFeeAccount] = tokens[tokenGet][forkFeeAccount].add(forkFeeTakeXfer);
@@ -293,6 +312,11 @@ contract TradeEtherToken is IToken {
     tokens[tokenGive][msg.sender] = tokens[tokenGive][msg.sender].add(amountGive.mul(amount).div(amountGet));
   }
 
+  function calcFeeForTokenHolder(address tokenHolder, uint tokenCount, uint feeTokenHolders) internal view returns (uint)
+  {
+    uint part = totalSupply_.div(tokenCount);
+    return feeTokenHolders.div(part);
+  }
   /**
   * This function is to test if a trade would go through.
   * Note: tokenGet & tokenGive can be the Ethereum contract address.
